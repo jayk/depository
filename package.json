@@ -1,5 +1,5 @@
 {
-  "name": "Depository",
+  "name": "depository",
   "version": "1.0.0",
   "description": "Simple but powerful state management module for javascript based applications.",
   "main": "Depository.js",
