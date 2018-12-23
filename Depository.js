@@ -40,7 +40,7 @@ function Depository() {
         let text = '';
         let new_keys = [];
         for (let i = 0, len = keys.length; i < len; i++) {
-            if (i>=position) {
+            if (i>position) {
                 new_keys.push(keys[i]);
             }
         }
@@ -51,7 +51,7 @@ function Depository() {
     // in least-specific to most-specific order;
     function find_handler_nodes(provided_key) {
         let keys = split_key(provided_key);
-        let key_has_handlers, descriptor, prefix, suffix, results = []; 
+        let key_has_handlers, descriptor, prefix, suffix, results = [];
 
         for (var i = 0, len = keys.length; i < len; i++) {
             key_has_handlers = false;
@@ -102,7 +102,7 @@ function Depository() {
     }
 
     // call filter - receives an object:
-    // { 
+    // {
     //     "current_key": "foo",
     //     "current_value": { "bar": { baz: "..." } },
     //     "key_suffix": "bar.baz",
@@ -115,12 +115,12 @@ function Depository() {
     // 3) an object representing a new set relative to the current position:
     //      { "key": "bar", value: { "bag": { "foobar" } } }
     //    if the filter received the object shown earlier in the documentation,
-    //    this returned object will result in foo.bar being set to the the 
+    //    this returned object will result in foo.bar being set to the the
     //    value returned. if no key is provided in the object, the original key
     //    will be used.  All deeper filters will be pre-empted when a filter returns
-    //    an object; 
+    //    an object;
 
-    this.__set_data = function(repo_data, provided_key, data, handler_nodes, filter_start_pos) {
+    this.__set_data = function(repo_data, provided_key, data, handler_nodes, filter_start_pos, delete_key) {
         let key, keys, new_node, node = repo_data;
         let handler_node;
         if (typeof handler_nodes == 'undefined') {
@@ -134,9 +134,9 @@ function Depository() {
         let new_data = data;
         //console.log('handler_nodes:', handler_nodes);
         if (handler_nodes.length) {
-            // start at the top level and work our way down. 
+            // start at the top level and work our way down.
             // behavior: call filter.  If filter returns false,
-            // the change is cancelled.  If filter returns an 
+            // the change is cancelled.  If filter returns an
             // object, it should be in the format:
             // { "key": "bar.baz", value: "new_value"}
             // where key is relative to the current position.
@@ -153,26 +153,40 @@ function Depository() {
                             "key_suffix": handler_node.suffix,
                             "current_value": this.get(handler_node.key)
                         };
+                        if (delete_key) {
+                            filter_arg.delete_key = true;
+                        }
                         let result = handler_node.filters[j](filter_arg);
                         let result_type = typeof result;
+                        let new_key;
                         if (result_type == 'boolean') {
                             if (result == false) {
                                 // halt processing here and now.
                                 return false;
                             } // otherwise continue
                         } else if (result_type == 'object') {
-                            if (typeof result.key != 'undefined') {
-                                let new_key = handler_node.key;
-                                if (result.key != '.') {
-                                    new_key += "." + result.key;
+                            // if we have a value
+                            if ("value" in result || result.delete_value) {
+                                if (typeof result.key == 'undefined') {
+                                    new_key = provided_key;
+                                } else {
+                                    new_key = handler_node.key;
+                                    if (result.key != '.') {
+                                        new_key += "." + result.key;
+                                    }
                                 }
                                 if (new_key == provided_key) {
                                     // if the new_key is the same as the provided key
-                                    // we simply overwrite the new data and proceed 
+                                    // we simply overwrite the new data and proceed
                                     // (avoiding an infinite recursion issue)
-                                    new_data = result.value;
+                                    if (typeof result.delete_value == 'boolean') {
+                                        delete_key = result.delete_value;
+                                        new_data = undefined;
+                                    } else {
+                                        new_data = result.value;
+                                    }
                                 } else {
-                                    return this.__set_data(depository_data, new_key, result.value, handler_nodes, i+1);
+                                    return this.__set_data(depository_data, new_key, result.value, handler_nodes, i+1, delete_key);
                                 }
                             }
                         }
@@ -183,16 +197,11 @@ function Depository() {
 
         // if we got here, we either had no filters, or the filters were
         // processed without issue;
-        //console.log('provided_key', provided_key);
-        //console.log('new_data', new_data);
         if (provided_key != '.') {
             keys = split_key(provided_key);
             last_key = keys.pop();
-//            console.log('keys', keys);
-//            console.log('last_key', last_key);
 
             for (var i = 0, len = keys.length; i < len; i++) {
-//                console.log('depository_data', depository_data);
                 key = keys[i];
                 new_node = node[key];
                 if (typeof new_node == 'undefined') {
@@ -208,20 +217,29 @@ function Depository() {
                         new_node = {};
                     }
                     node[key] = new_node;
-                } 
+                }
                 node = new_node;
             }
             node[last_key] = new_data;
+            if (new_data == undefined && delete_key) {
+                if (typeof node == 'object') {
+                    if (Array.isArray(node)) {
+                        if (/^\d+$/.test(last_key)) {
+                            node.splice(last_key, 1);
+                        }
+                    } else {
+                        delete node[last_key];
+                    }
+                }
+            }
         } else {
             depository_data = new_data;
         }
 
         // watchers fire after the data set is complete;
         if (handler_nodes.length) {
-            // start at the top level and work our way down. 
-            //console.log('handling watchers');
+            // start at the top level and work our way down.
             handler_nodes.map(function(handler_node) {
-                //console.log('handler_node', handler_node);
                 if (Array.isArray(handler_node.watchers)) {
                     watcher_arg = undefined;
                     // create the filter arguments:
@@ -249,33 +267,8 @@ function Depository() {
     }
 
     this.delete = function(provided_key, data) {
-        let key, keys, last_key, new_node, node = depository_data;
-        if (provided_key != '.') {
-            keys = split_key(provided_key);
-            last_key = keys.pop();
-            for (var i = 0, len = keys.length; i < len; i++) {
-                key = keys[i];
-                if (typeof node == 'object') {
-                    new_node = node[key];
-                    if (typeof new_node == 'undefined') {
-                        return undefined;
-                    } else {
-                        node = new_node;
-                    }
-                } else {
-                    return undefined;
-                }
-            }
-            if (typeof node == 'object') {
-                if (Array.isArray(node)) {
-                    if (/^\d+$/.test(last_key)) {
-                        node.splice(last_key, 1);
-                    }
-                } else {
-                    delete node[last_key];
-                }
-            }
-        }
+        // delete is a call to set with undefined as the value, and delete_key = true;
+        return this.__set_data(depository_data, provided_key, undefined, undefined, undefined, true);
     }
 
     this.add_filter = function(provided_key, func) {
@@ -316,6 +309,7 @@ function Depository() {
     }
 }
 
+/* istanbul ignore else */
 if (typeof(module) !== 'undefined') {
     module.exports = Depository;
-} 
+}

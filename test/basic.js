@@ -12,7 +12,7 @@ describe('Depository', function() {
             assert.equal(typeof depo.set, 'function');
             assert.equal(typeof depo.delete, 'function');
         });
-        
+
 
         it('Setting and getting data works', function() {
             var depo = new Depository();
@@ -20,6 +20,10 @@ describe('Depository', function() {
             depo.set('foo.bar', 17);
             let new_val = depo.get('foo.bar')
             assert.strictEqual(new_val, 17);
+
+            new_val = depo.get('.');
+
+            assert.deepStrictEqual(new_val, { "foo": { "bar": 17}});
         });
 
         it('Set root data works', function() {
@@ -73,9 +77,9 @@ describe('Depository', function() {
             assert.deepStrictEqual(new_val, undefined);
         });
 
-        it('getting data that does not exist fails', function() {
+        it('getting data that does not exist returns undefined', function() {
             var depo = new Depository();
-            
+
             depo.set('.', { "foo": { "baz": [ 18 ] }});
             let new_val = depo.get('foo.bar');
             assert.strictEqual(new_val, undefined);
@@ -83,15 +87,23 @@ describe('Depository', function() {
             assert.strictEqual(new_val, undefined);
         });
 
-        it('deleting data that does not exist fails', function() {
+        it('deleting data that does not exist is ok', function() {
             var depo = new Depository();
-            
+
             depo.set('.', { "foo": { "baz": [ 18 ] }});
             let new_val = depo.delete('foo.bar');
             assert.strictEqual(new_val, undefined);
-            new_val = depo.delete('foo.bar.0');
 
-            new_val = depo.delete('foo.baz.0.foo.bar');
+            new_val = depo.delete('foo.bar.0');
+            assert.strictEqual(new_val, undefined);
+
+            new_val = depo.delete('foo.bar.foo');
+            assert.strictEqual(new_val, undefined);
+
+            new_val = depo.delete('foo.baz.1');
+            assert.strictEqual(new_val, undefined);
+
+            new_val = depo.delete('foo.baz.0.foo');
             assert.strictEqual(new_val, undefined);
         });
 
@@ -104,7 +116,7 @@ describe('Depository', function() {
             depo2.set('foo.bar', 12);
             depo2.set('foo.baz', 19);
             depo2.set('foo.bibble', "blub");
-            
+
             let new_val = depo1.get('foo.bar')
             assert.strictEqual(depo1.get('foo.bar'), 17);
             assert.strictEqual(depo1.get('foo.baz'), 13);
@@ -181,7 +193,24 @@ describe('Depository', function() {
             setTimeout(function() {
                 assert.strictEqual(count, 1);
                 done();
-            }, 100);
+            }, 50);
+        });
+
+        it('remove nonexistant watcher works', function(done) {
+            let depo = new Depository();
+            let count = 0;
+            depo.set('.', { "foo": { "baz": [ 18 ] }});
+            let func = function(notification) {
+                count++;
+            };
+            depo.watch('foo', func);
+            depo.set("foo.baz", [ 19, 22]);
+            depo.remove_watcher('fooey', func);
+            depo.set("foo.bar", "wibble");
+            setTimeout(function() {
+                assert.strictEqual(count, 2);
+                done();
+            }, 50);
         });
 
         it('does multiple level watchers', function(done) {
@@ -203,6 +232,7 @@ describe('Depository', function() {
             depo.set("foo.baz", [ 19, 22]);
         });
     });
+
     describe('Filters', function() {
         it('filter approval works', function() {
             let depo = new Depository();
@@ -229,6 +259,19 @@ describe('Depository', function() {
             assert.deepStrictEqual(value, [ 18 ]);
         });
 
+        it('filter reject on delete works', function() {
+            let depo = new Depository();
+            depo.set('.', { "foo": { "baz": [ 18 ] }});
+            depo.add_filter('foo.baz', function(notification) {
+                //console.log('notification', notification);
+                return false;
+            });
+            let res = depo.delete("foo.baz")
+            //console.log("Result", res);
+            var value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, [ 18 ]);
+        });
+
         it('filter change works', function() {
             let depo = new Depository();
             depo.set('.', { "foo": { "baz": [ 18 ] }});
@@ -240,6 +283,66 @@ describe('Depository', function() {
             //console.log("Result", res);
             var value = depo.get("foo.baz");
             assert.deepStrictEqual(value, 'bob_wibble');
+        });
+
+        it('filter change with delete_value works', function() {
+            let depo = new Depository();
+            depo.set('.', { "foo": { "baz": [ 18 ] }});
+            depo.add_filter('foo.baz', function(notification) {
+                return { delete_value: true };
+            });
+            let res = depo.set("foo.baz", "wibble");
+            //console.log("Result", res);
+            var value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, undefined);
+        });
+
+        it('filter change with delete_value false does nothing', function() {
+            let depo = new Depository();
+            depo.set('.', { "foo": { "baz": [ 18 ] }});
+            depo.add_filter('foo.baz', function(notification) {
+                return { delete_value: false };
+            });
+            let res = depo.set("foo.baz", "wibble");
+            //console.log("Result", res);
+            var value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, "wibble");
+
+        });
+
+        it('invalid filter results do nothing', function() {
+            let depo = new Depository();
+
+            depo.set('.', { "foo": { "baz": [ 18 ] }});
+            depo.add_filter('foo.baz', function(notification) {
+                //console.log('notification', notification);
+                return 27;
+            });
+
+            depo.set("foo.baz", "wibble");
+
+            let value = depo.get("foo.baz");
+            assert.strictEqual(value, "wibble");
+        });
+    });
+
+    describe("Advanced Filters", function() {
+
+        it('multiple filters work', function() {
+            let depo = new Depository();
+            depo.set('.', { "foo": { "baz": [ 18 ] }});
+            depo.add_filter('foo.baz', function(notification) {
+                //console.log('notification', notification);
+                return { key: ".", value: notification.provided_value + '_foo' };
+            });
+            depo.add_filter('foo.baz', function(notification) {
+                //console.log('notification', notification);
+                return { key: ".", value: notification.provided_value + '_bar' };
+            });
+            let res = depo.set("foo.baz", "wibble");
+            //console.log("Result", res);
+            var value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, 'wibble_foo_bar');
         });
 
         it('filter subelement change works', function() {
@@ -258,6 +361,28 @@ describe('Depository', function() {
             assert.deepStrictEqual(value, [ 18, 'bob_wibble']);
         });
 
+        it('filter change with delete_value on higher element works', function() {
+            let depo = new Depository();
+            let res, value;
+            depo.set('.', { "foo": { "baz": [ 18 ] }});
+            depo.add_filter('foo', function(notification) {
+                if (notification.key_suffix == 'baz' && notification.provided_value == 'wibble') {
+                    return { key: notification.key_suffix, delete_value: true };
+                } else {
+                    return true;
+                }
+            });
+            // should be fine
+            res = depo.set("foo.baz", "bob");
+            value = depo.get("foo");
+            assert.deepStrictEqual(value, {"baz": "bob"});
+
+            // should trigger baz to be deleted
+            res = depo.set("foo.baz", "wibble");
+            value = depo.get("foo");
+            assert.deepStrictEqual(value, {});
+        });
+
         it('filter removal works', function() {
             let depo = new Depository();
             depo.set('.', { "foo": { "baz": [ 18 ] }});
@@ -270,7 +395,7 @@ describe('Depository', function() {
             let value = depo.get("foo.baz");
             // expect that the filter prevented the edit
             assert.deepStrictEqual(value, [ 18 ]);
-            
+
             depo.remove_filter('foo.baz', func);
             depo.set("foo.baz", "wibble");
             value = depo.get("foo.baz");
@@ -278,24 +403,20 @@ describe('Depository', function() {
             // expect that since we removed the filter, the set was successful
             assert.deepStrictEqual(value, "wibble");
         });
+
         it('removal of nonexistent filters works', function() {
             let depo = new Depository();
             depo.set('.', { "foo": { "baz": [ 18 ] }});
             let func = function(notification) {
-                //console.log('notification', notification);
                 return false;
             };
             let truefunc = function(notification) {
-                //console.log('notification', notification);
                 return true;
             };
             depo.add_filter('foo.baz', func);
-            
+
             depo.remove_filter('foo.bar', func);
             depo.remove_filter('foo.baz', truefunc);
         });
     });
 });
-
-
-
