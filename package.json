@@ -1,0 +1,29 @@
+{
+  "name": "Depository",
+  "version": "1.0.0",
+  "description": "Simple but powerful state management module for javascript based applications.",
+  "main": "Depository.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha --recursive test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jayk/depository.git"
+  },
+  "keywords": [
+    "state",
+    "hooks",
+    "events",
+    "filters",
+    "management"
+  ],
+  "author": "Jay Kuri",
+  "license": "LGPL-2.1",
+  "bugs": {
+    "url": "https://github.com/jayk/depository/issues"
+  },
+  "homepage": "https://github.com/jayk/depository#readme"
+}
