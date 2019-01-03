@@ -1,10 +1,14 @@
 {
   "name": "depository",
-  "version": "1.0.0",
+  "version": "2.0.1",
   "description": "Simple but powerful state management module for javascript based applications.",
   "main": "Depository.js",
   "directories": {
     "test": "test"
+  },
+  "jshintConfig": {
+      "strict": true,
+      "esversion": 6"
   },
   "scripts": {
     "test": "mocha --recursive test"
@@ -17,7 +21,7 @@
     "state",
     "hooks",
     "events",
-    "filters",
+    "filter",
     "management"
   ],
   "author": "Jay Kuri",

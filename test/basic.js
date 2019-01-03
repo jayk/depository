@@ -57,6 +57,7 @@ describe('Depository', function() {
             assert.deepStrictEqual(new_val, [{"foo": "fizz"}]);
         });
 
+
         it('Set element of nonexistant object creates objects', function() {
             let depo = new Depository({ "foo": { "baz": [ 18 ] }});
 
@@ -171,7 +172,7 @@ describe('Depository', function() {
             let depo = new Depository({ "foo": { "baz": [ 18 ] }});
             depo.watch('.', function(notification) {
                 //console.log('notification', notification);
-                assert.deepStrictEqual(notification.current_value, { "foo": {"baz": [ 19, 22 ] } });
+                assert.deepStrictEqual(notification.value, { "foo": {"baz": [ 19, 22 ] } });
                 done();
             });
             depo.set("foo.baz", [ 19, 22 ]);
@@ -373,6 +374,29 @@ describe('Depository', function() {
             //console.log("Result", res);
             let value = depo.get("foo.baz");
             assert.deepStrictEqual(value, [ 18, 'bob_wibble']);
+        });
+
+        it('filter subelements of undefined works', function() {
+            let depo = new Depository({});
+
+            depo.add_filter('foo', function(notification) {
+                //console.log('notification', notification);
+                return true;
+            });
+            depo.add_filter('foo.bar', function(notification) {
+                //console.log('notification', notification);
+                return true;
+            });
+
+            let res = depo.set("foo.baz", "wibble");
+
+            //console.log("Result", res);
+            let value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, 'wibble');
+
+            res = depo.set("foo.bar.0", "bukkit");
+            value = depo.get("foo.bar");
+            assert.deepStrictEqual(value, ["bukkit"]);
         });
 
         it('filter change with delete_value on higher element works', function() {
