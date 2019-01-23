@@ -456,5 +456,89 @@ describe('Depository', function() {
             depo.remove_filter('foo.bar', func);
             depo.remove_filter('foo.baz', truefunc);
         });
+
+    });
+
+    describe("Tetchy mode", function() {
+
+        it('filter reject does not throw when tetchy disabled', function() {
+            let depo = new Depository({ "foo": { "baz": [ 18 ] }});
+            let res, exception_was_thrown = false;
+
+            depo.be_tetchy(false);
+            depo.add_filter('foo.baz', function(notification) {
+                //console.log('notification', notification);
+                return false;
+            });
+
+            try {
+                res = depo.set("foo.baz", "wibble");
+            } catch (e) {
+                exception_was_thrown = true;
+            }
+            
+            assert.equal(res, false);
+
+            let value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, [ 18 ]);
+
+            assert.equal(exception_was_thrown, false);
+        });
+
+        it('tetchy mode works on filter reject', function() {
+            let depo = new Depository({ "foo": { "baz": [ 18 ] }});
+            let exception_was_thrown = false;
+            depo.be_tetchy(true);
+
+            depo.add_filter('foo.baz', function(notification) {
+                //console.log('notification', notification);
+                return false;
+            });
+
+            try {
+                let res = depo.set("foo.baz", "wibble");
+            } catch (e) {
+                exception_was_thrown = true;
+            }
+
+            let value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, [ 18 ]);
+
+            assert.equal(exception_was_thrown, true);
+        });
+
+        it('tetchy mode supplies expected information', function() {
+            let depo = new Depository({ "foo": { "baz": [ 18 ] }});
+            let exception_was_thrown = false;
+            let thrown_exception;
+            depo.be_tetchy(true);
+
+            var dontallow = function(notification) {
+                //console.log('notification', notification);
+                return false;
+            };
+
+            depo.add_filter('foo', dontallow);
+
+            try {
+                let res = depo.set("foo.baz", "wibble");
+            } catch (e) {
+                console.log(e);
+                thrown_exception = e;
+                exception_was_thrown = true;
+            }
+            let value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, [ 18 ]);
+            assert.equal(exception_was_thrown, true);
+
+            assert.equal(thrown_exception.filter, dontallow);
+            assert.equal(thrown_exception.filter_args.provided_key, "foo.baz");
+            assert.equal(thrown_exception.filter_args.provided_value, "wibble");
+            assert.deepStrictEqual(thrown_exception.filter_args.proposed_value, { "baz": "wibble" });
+            assert.deepStrictEqual(thrown_exception.filter_args.current_value, { "baz": [ 18 ] });
+            assert.equal(thrown_exception.filter_args.key, "foo");
+            assert.equal(thrown_exception.filter_args.key_suffix, "baz");
+        
+        });
     });
 });
