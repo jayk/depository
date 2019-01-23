@@ -20,6 +20,7 @@ function Depository(initial_data) {
         filters: {},
         watchers: {}
     };
+    var tetchy = false;
 
     function split_key(key) {
         return key.split('.');
@@ -84,6 +85,12 @@ function Depository(initial_data) {
         return results;
     }
 
+    this.be_tetchy = function(throw_exceptions_on_rejected_set) {
+
+        // if throw_exceptions_on_rejected_set is true turn on tetchy mode
+        tetchy = throw_exceptions_on_rejected_set;
+    };
+
 
     this.get = function(provided_key) {
         // console.log(depository_data);
@@ -104,7 +111,11 @@ function Depository(initial_data) {
                 }
             }
         }
-        return JSON.parse(JSON.stringify(node));
+        if (typeof node == 'object') {
+            return JSON.parse(JSON.stringify(node));
+        } else {
+            return node;
+        }
     };
 
     // updates original_data at provided_key using new_data.
@@ -232,7 +243,14 @@ function Depository(initial_data) {
                         if (result_type == 'boolean') {
                             if (result == false) {
                                 // halt processing here and now.
-                                return false;
+                                if (tetchy) {
+                                    var err = new Error('Error setting ' + provided_key + ', filter prevented set');
+                                    err.filter = handler_node.filters[j];
+                                    err.filter_args = filter_arg;
+                                    throw err;
+                                } else {
+                                    return false;
+                                }
                             } // otherwise continue
                         } else if (result_type == 'object') {
                             // if we have a value we are overiding our provided value

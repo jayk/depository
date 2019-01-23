@@ -461,13 +461,34 @@ describe('Depository', function() {
 
     describe("Tetchy mode", function() {
 
+        it('tetchy is off by default', function() {
+            let depo = new Depository({ "foo": { "baz": [ 18 ] }});
+            let res, exception_was_thrown = false;
+
+            depo.add_filter('foo.baz', function(notification) {
+                return false;
+            });
+
+            try {
+                res = depo.set("foo.baz", "wibble");
+            } catch (e) {
+                exception_was_thrown = true;
+            }
+            
+            assert.equal(res, false);
+
+            let value = depo.get("foo.baz");
+            assert.deepStrictEqual(value, [ 18 ]);
+
+            assert.equal(exception_was_thrown, false);
+        });
+
         it('filter reject does not throw when tetchy disabled', function() {
             let depo = new Depository({ "foo": { "baz": [ 18 ] }});
             let res, exception_was_thrown = false;
 
             depo.be_tetchy(false);
             depo.add_filter('foo.baz', function(notification) {
-                //console.log('notification', notification);
                 return false;
             });
 
@@ -491,7 +512,6 @@ describe('Depository', function() {
             depo.be_tetchy(true);
 
             depo.add_filter('foo.baz', function(notification) {
-                //console.log('notification', notification);
                 return false;
             });
 
@@ -514,7 +534,6 @@ describe('Depository', function() {
             depo.be_tetchy(true);
 
             var dontallow = function(notification) {
-                //console.log('notification', notification);
                 return false;
             };
 
@@ -523,7 +542,6 @@ describe('Depository', function() {
             try {
                 let res = depo.set("foo.baz", "wibble");
             } catch (e) {
-                console.log(e);
                 thrown_exception = e;
                 exception_was_thrown = true;
             }
