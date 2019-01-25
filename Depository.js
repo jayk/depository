@@ -21,6 +21,7 @@ function Depository(initial_data) {
         watchers: {}
     };
     var tetchy = false;
+    var tetchy_lock = false;
 
     function split_key(key) {
         return key.split('.');
@@ -85,10 +86,22 @@ function Depository(initial_data) {
         return results;
     }
 
-    this.be_tetchy = function(throw_exceptions_on_rejected_set) {
+    this.be_tetchy = function(throw_exceptions_on_rejected_set, lock, unlock) {
 
-        // if throw_exceptions_on_rejected_set is true turn on tetchy mode
-        tetchy = throw_exceptions_on_rejected_set;
+        if (tetchy_lock == false || tetchy_lock == lock) {
+            tetchy = throw_exceptions_on_rejected_set;
+        } else {
+            throw new Error('Attempted to change tetchy mode when tetchy was locked');
+        }
+
+        // if we are unlocked, but we have a new lock code, then we lock.
+        if (tetchy_lock == false && (typeof lock != 'undefined' && lock != false)) {
+            tetchy_lock = lock;
+        } else if (unlock && tetchy_lock == lock) {
+            // if we were given a valid lock code, and were asked to unlock, do that
+            tetchy_lock = false;
+        }
+
     };
 
 

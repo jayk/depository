@@ -144,7 +144,7 @@ describe('Depository', function() {
         it('does exact watcher', function(done) {
             let depo = new Depository({ "foo": { "baz": [ 18 ] }});
             depo.watch('foo.baz', function(notification) {
-                //console.log('notification', notification);
+                console.log('notification', notification);
                 done();
             });
             depo.set("foo.baz", [ 19, 22]);
@@ -474,7 +474,7 @@ describe('Depository', function() {
             } catch (e) {
                 exception_was_thrown = true;
             }
-            
+
             assert.equal(res, false);
 
             let value = depo.get("foo.baz");
@@ -497,7 +497,7 @@ describe('Depository', function() {
             } catch (e) {
                 exception_was_thrown = true;
             }
-            
+
             assert.equal(res, false);
 
             let value = depo.get("foo.baz");
@@ -556,7 +556,53 @@ describe('Depository', function() {
             assert.deepStrictEqual(thrown_exception.filter_args.current_value, { "baz": [ 18 ] });
             assert.equal(thrown_exception.filter_args.key, "foo");
             assert.equal(thrown_exception.filter_args.key_suffix, "baz");
-        
+
+        });
+
+        it('tetchy_mode lock prevents changing tetchy mode', function() {
+            let depo = new Depository({ "foo": { "baz": [ 18 ] }});
+            let res, exception_was_thrown = false;
+
+            depo.be_tetchy(true, "lockdown");
+
+            try {
+                depo.be_tetchy(false);
+            } catch (e) {
+                exception_was_thrown = true;
+            }
+
+            assert.equal(exception_was_thrown, true);
+        });
+
+        it('tetchy_mode lock can be unlocked', function() {
+            let depo = new Depository({ "foo": { "baz": [ 18 ] }});
+            let res, exception_was_thrown = false;
+
+            depo.be_tetchy(true, "lockdown");
+            depo.be_tetchy(true, "lockdown", true);
+
+            try {
+                depo.be_tetchy(false);
+            } catch (e) {
+                exception_was_thrown = true;
+            }
+
+            assert.equal(exception_was_thrown, false);
+        });
+
+        it('tetchy_mode lock cannot be changed with the wrong lock code', function() {
+            let depo = new Depository({ "foo": { "baz": [ 18 ] }});
+            let res, exception_was_thrown = false;
+
+            depo.be_tetchy(true, "lockdown");
+
+            try {
+                depo.be_tetchy(false, "lockup");
+            } catch (e) {
+                exception_was_thrown = true;
+            }
+
+            assert.equal(exception_was_thrown, true);
         });
     });
 });
